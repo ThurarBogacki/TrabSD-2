@@ -1,2 +1,2 @@
  /src -> To compile -> javac CausalMulticast/*.java
- /src to run -> java CausalMulticast.Main port id
+ /src to run -> java CausalMulticast.Main port
