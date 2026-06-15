@@ -30,15 +30,6 @@ public class Main implements ICausalMulticast {
             
             if (input.equalsIgnoreCase("sair")) {
                 break;
-            } else if (input.startsWith("liberar ")) {
-                // Captura o ID após o comando 'liberar '
-                try {
-                    String[] partes = input.split(" ");
-                    int idAtraso = Integer.parseInt(partes[1]);
-                    middleware.liberarMensagem(idAtraso);
-                } catch (Exception e) {
-                    System.out.println("Erro: Use 'liberar <id>' corretamente.");
-                }
             } else {
                 // Envio normal de mensagem
                 middleware.mcsend(input, app);

@@ -12,7 +12,7 @@ public class Message implements Serializable {
         this.content = content;
         this.senderId = senderId;
         this.vc = new int[currentMatrix.length][currentMatrix[0].length];
-        // Clonagem profunda da matriz no momento do disparo
+
         for (int i = 0; i < currentMatrix.length; i++) {
             System.arraycopy(currentMatrix[i], 0, this.vc[i], 0, currentMatrix[i].length);
         }

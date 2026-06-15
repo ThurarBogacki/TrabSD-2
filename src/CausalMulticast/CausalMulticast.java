@@ -48,6 +48,22 @@ public class CausalMulticast {
     }
 
     public synchronized void mcsend(String msg, ICausalMulticast cliente) {
+
+        if (msg.trim().toLowerCase().startsWith("liberar ")) {
+        try {
+            String[] partes = msg.trim().split(" ");
+            int idAtraso = Integer.parseInt(partes[1]);
+            
+            System.out.println("[MIDDLEWARE] Comando detectado! Executando liberação local...");
+            this.liberarMensagem(idAtraso); 
+            
+            return; // CRÍTICO: Encerra o método aqui para NÃO incrementar relógio nem enviar para a rede!
+        } catch (Exception e) {
+            System.out.println("[MIDDLEWARE] Erro ao processar comando de liberação interno.");
+            return;
+        }
+    }
+    
         int myId = discovery.getMyId();
         
         // Regra da Fig 2: Incrementa o número de multicasts feitos por mim nesta instância
