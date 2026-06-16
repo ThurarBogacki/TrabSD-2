@@ -6,15 +6,15 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class CausalMulticast {
-    private int[][] mc; // Matriz de Relógios lógicos
+    private int[][] mc;
     private final List<Message> buffer = new CopyOnWriteArrayList<>();
     private final List<DelayedUnicast> mensagensAtrasadas = new CopyOnWriteArrayList<>();
     private final DatagramSocket socket;
     private final ICausalMulticast client;
     private final DiscoveryService discovery;
-    private int maxId = 10; // Tamanho máximo estimado da matriz N x N
+    private int maxId = 10; 
 
-    // Estrutura auxiliar para gerenciar envios unicast retidos individualmente
+
     private static class DelayedUnicast {
         int id;
         Message message;
@@ -29,7 +29,6 @@ public class CausalMulticast {
 
     private int delayedCounter = 0;
 
-    // CONSTRUTOR EM CONFORMIDADE ESTRITA COM A ESPECIFICAÇÃO
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         this.client = client;
         this.mc = new int[maxId][maxId];
@@ -38,7 +37,6 @@ public class CausalMulticast {
             this.discovery = new DiscoveryService(port);
             this.discovery.start();
             
-            // Aguarda brevemente para estabilizar a descoberta inicial dos nós na rede
             Thread.sleep(1500);
             
             startListening();
@@ -57,16 +55,14 @@ public class CausalMulticast {
             System.out.println("[MIDDLEWARE] Comando detectado! Executando liberação local...");
             this.liberarMensagem(idAtraso); 
             
-            return; // CRÍTICO: Encerra o método aqui para NÃO incrementar relógio nem enviar para a rede!
+            return;
         } catch (Exception e) {
             System.out.println("[MIDDLEWARE] Erro ao processar comando de liberação interno.");
             return;
         }
     }
-    
+
         int myId = discovery.getMyId();
-        
-        // Regra da Fig 2: Incrementa o número de multicasts feitos por mim nesta instância
         mc[myId][myId]++;
         
         Message message = new Message(msg, this.mc, myId);
@@ -127,7 +123,6 @@ public class CausalMulticast {
         }
     }
 
-      // Adicione essa estrutura nas variáveis de escopo da classe CausalMulticast para controle de duplicatas
 private final Set<String> mensagensEntreguesNaAplicacao = Collections.synchronizedSet(new HashSet<>());
 
   private void startListening() {
@@ -142,20 +137,17 @@ private final Set<String> mensagensEntreguesNaAplicacao = Collections.synchroniz
                 Message msg = (Message) ois.readObject();
                 
                 synchronized (this) {
-                    // 1. Apenas coloca no buffer e atualiza a visão da linha do remetente (Fig 2)
                     buffer.add(msg);
                     
                     for (int k = 0; k < maxId; k++) {
                         this.mc[msg.senderId][k] = Math.max(this.mc[msg.senderId][k], msg.vc[msg.senderId][k]);
                     }
                     
-                    // 2. Processa o ordenamento causal e a entrega antes de mexer no nosso relógio de controle
                     processBuffer();
                     checkStabilization();
                     printStatus();
                 }
             } catch (Exception e) {
-                // Captura silenciosa para o console ficar limpo
             }
         }
     }).start();
@@ -170,18 +162,15 @@ private void processBuffer() {
             String msgId = msg.senderId + "_" + msg.vc[msg.senderId][msg.senderId];
             
             if (isCausallyOrdered(msg)) {
-                // Remove do buffer de pendências temporárias
                 buffer.remove(msg);
-                
+
                 if (!mensagensEntreguesNaAplicacao.contains(msgId)) {
                     mensagensEntreguesNaAplicacao.add(msgId);
                     
-                    // CORREÇÃO DA FIGURA 1: Incrementa o relógio local do receptor no momento da entrega!
                     if (myId != msg.senderId) {
                         mc[myId][msg.senderId]++;
                     }
-                    
-                    // Entrega assíncrona para não congelar o console de comandos
+                
                     new Thread(() -> client.deliver(msg.content)).start();
                 }
                 
@@ -196,15 +185,11 @@ private void processBuffer() {
         int myId = discovery.getMyId();
         int sender = msg.senderId;
 
-        // Se a mensagem partiu de mim mesmo, ignora validação causal estrita de rede
         if (sender == myId) return true;
 
-        // Validação Causal Clássica (Fig 1)
-        // 1. Checa se é a mensagem imediatamente subsequente daquele remetente
         if (msg.vc[sender][sender] != mc[myId][sender] + 1) {
             return false;
         }
-        // 2. Garante que o remetente não viu mensagens de terceiros que eu ainda não vi
         for (int k = 0; k < maxId; k++) {
             if (k != sender && msg.vc[sender][k] > mc[myId][k]) {
                 return false;
@@ -220,13 +205,11 @@ private void processBuffer() {
         buffer.removeIf(msg -> {
             int sender = msg.senderId;
             
-            // Calcula o mínimo do relógio do remetente visto por todas as instâncias ativas (Mínimo da Linha)
             int minVisto = Integer.MAX_VALUE;
             for (int i = 0; i < activeMembers.size(); i++) {
                 minVisto = Math.min(minVisto, mc[i][sender]);
             }
             
-            // Regra da Fig 2: Se o timestamp da mensagem for menor ou igual ao mínimo global, está estável.
             boolean stable = msg.vc[sender][sender] <= minVisto;
             if (stable) {
                 System.out.println(">> [ESTABILIZAÇÃO] Mensagem '" + msg.content + "' descartada com sucesso do buffer local.");

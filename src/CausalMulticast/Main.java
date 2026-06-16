@@ -31,7 +31,6 @@ public class Main implements ICausalMulticast {
             if (input.equalsIgnoreCase("sair")) {
                 break;
             } else {
-                // Envio normal de mensagem
                 middleware.mcsend(input, app);
             }
             System.out.print("> ");
@@ -42,10 +41,8 @@ public class Main implements ICausalMulticast {
 
 @Override
     public void deliver(String msg) {
-        // Remove a quebra de linha inicial se preferir, ou deixe como está.
-        // O importante é garantir que o prompt apareça após a mensagem.
         System.out.println("\n>>> ENTREGA DA APLICAÇÃO: " + msg);
         System.out.print("> "); 
-        System.out.flush(); // Garante que o texto saia imediatamente
+        System.out.flush();
     }
 }

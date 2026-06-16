@@ -5,7 +5,7 @@ import java.io.Serializable;
 public class Message implements Serializable {
     private static final long serialVersionUID = 1L;
     public String content;
-    public int[][] vc; // Matriz de Relógios para Estabilização (Vetor de Vetores)
+    public int[][] vc;
     public int senderId;
 
     public Message(String content, int[][] currentMatrix, int senderId) {
