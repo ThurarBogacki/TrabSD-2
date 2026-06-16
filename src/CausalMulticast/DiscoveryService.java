@@ -46,7 +46,6 @@ public class DiscoveryService extends Thread {
      * @return O ID inteiro do processo local.
      */
     public int getMyId() {
-        // Ordena os membros pelo IP/Porta para mapear um ID determinístico (0, 1, 2...)
         List<InetSocketAddress> sorted = new ArrayList<>(members);
         sorted.sort(Comparator.comparing((InetSocketAddress addr) -> addr.getAddress().getHostAddress())
                               .thenComparingInt(InetSocketAddress::getPort));
@@ -54,7 +53,7 @@ public class DiscoveryService extends Thread {
         for (int i = 0; i < sorted.size(); i++) {
             if (sorted.get(i).getPort() == localPort) return i;
         }
-        return 0; // Fallback
+        return 0; 
     }
 
     /**
@@ -62,7 +61,6 @@ public class DiscoveryService extends Thread {
      * e escutando a entrada de novos membros no grupo multicast.
      */
     public void run() {
-        // Thread para anunciar presença periodicamente
         new Thread(() -> {
             while (true) {
                 try {
@@ -74,7 +72,6 @@ public class DiscoveryService extends Thread {
             }
         }).start();
 
-        // Ouvir anúncios de novos membros
         byte[] buffer = new byte[256];
         while (true) {
             try {

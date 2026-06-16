@@ -11,15 +11,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * a matriz de relógios lógicos locais (mc).
  */
 public class CausalMulticast {
-    private int[][] mc; // Matriz de Relógios lógicos
+    private int[][] mc;
     private final List<Message> buffer = new CopyOnWriteArrayList<>();
     private final List<DelayedUnicast> mensagensAtrasadas = new CopyOnWriteArrayList<>();
     private final DatagramSocket socket;
     private final ICausalMulticast client;
     private final DiscoveryService discovery;
-    private int maxId = 10; // Tamanho máximo estimado da matriz N x N
+    private int maxId = 10; 
 
-    // Estrutura auxiliar para gerenciar envios unicast retidos individualmente
+
     private static class DelayedUnicast {
         int id;
         Message message;
@@ -48,7 +48,6 @@ public class CausalMulticast {
             this.discovery = new DiscoveryService(port);
             this.discovery.start();
             
-            // Aguarda brevemente para estabilizar a descoberta inicial dos nós na rede
             Thread.sleep(1500);
             
             startListening();
@@ -72,16 +71,14 @@ public class CausalMulticast {
             System.out.println("[MIDDLEWARE] Comando detectado! Executando liberação local...");
             this.liberarMensagem(idAtraso); 
             
-            return; // CRÍTICO: Encerra o método aqui para NÃO incrementar relógio nem enviar para a rede!
+            return;
         } catch (Exception e) {
             System.out.println("[MIDDLEWARE] Erro ao processar comando de liberação interno.");
             return;
         }
     }
-    
+
         int myId = discovery.getMyId();
-        
-        // Regra da Fig 2: Incrementa o número de multicasts feitos por mim nesta instância
         mc[myId][myId]++;
         
         Message message = new Message(msg, this.mc, myId);
@@ -225,15 +222,11 @@ public class CausalMulticast {
         int myId = discovery.getMyId();
         int sender = msg.senderId;
 
-        // Se a mensagem partiu de mim mesmo, ignora validação causal estrita de rede
         if (sender == myId) return true;
 
-        // Validação Causal Clássica (Fig 1)
-        // 1. Checa se é a mensagem imediatamente subsequente daquele remetente
         if (msg.vc[sender][sender] != mc[myId][sender] + 1) {
             return false;
         }
-        // 2. Garante que o remetente não viu mensagens de terceiros que eu ainda não vi
         for (int k = 0; k < maxId; k++) {
             if (k != sender && msg.vc[sender][k] > mc[myId][k]) {
                 return false;
@@ -255,13 +248,11 @@ public class CausalMulticast {
         buffer.removeIf(msg -> {
             int sender = msg.senderId;
             
-            // Calcula o mínimo do relógio do remetente visto por todas as instâncias ativas (Mínimo da Linha)
             int minVisto = Integer.MAX_VALUE;
             for (int i = 0; i < activeMembers.size(); i++) {
                 minVisto = Math.min(minVisto, mc[i][sender]);
             }
             
-            // Regra da Fig 2: Se o timestamp da mensagem for menor ou igual ao mínimo global, está estável.
             boolean stable = msg.vc[sender][sender] <= minVisto;
             if (stable) {
                 System.out.println(">> [ESTABILIZAÇÃO] Mensagem '" + msg.content + "' descartada com sucesso do buffer local.");
