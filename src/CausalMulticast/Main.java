@@ -2,7 +2,22 @@ package CausalMulticast;
 
 import java.util.Scanner;
 
+/**
+ * Classe principal da aplicação. Fornece a interface de terminal (CLI) para o usuário.
+ */
 public class Main implements ICausalMulticast {
+
+    /**
+     * Construtor padrão da aplicação. 
+     * Declarado explicitamente para fins de documentação do JavaDoc.
+     */
+    public Main() {
+    }
+
+    /**
+     * Ponto de entrada do programa.
+     * @param args Argumentos de linha de comando (espera receber a porta).
+     */
     public static void main(String[] args) {
         if (args.length < 1) {
             System.out.println("Uso: java CausalMulticast.Main <porta>");
@@ -40,7 +55,7 @@ public class Main implements ICausalMulticast {
         System.exit(0);
     }
 
-@Override
+    @Override
     public void deliver(String msg) {
         // Remove a quebra de linha inicial se preferir, ou deixe como está.
         // O importante é garantir que o prompt apareça após a mensagem.

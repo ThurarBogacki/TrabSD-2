@@ -4,25 +4,47 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Serviço responsável por descobrir dinamicamente outros processos na rede
+ * utilizando UDP Multicast.
+ */
 public class DiscoveryService extends Thread {
     private int localPort;
+    
+    /** Lista de membros ativos descobertos na rede. */
     public List<InetSocketAddress> members = new CopyOnWriteArrayList<>();
+    
     private MulticastSocket multicastSocket;
     private InetAddress groupAddress;
     private static final String MULTICAST_IP = "224.0.0.1";
     private static final int MULTICAST_PORT = 8888;
 
+    /**
+     * Inicializa o serviço de descoberta na porta especificada.
+     * @param localPort Porta UDP do processo atual.
+     */
     public DiscoveryService(int localPort) {
         this.localPort = localPort;
         try {
             this.multicastSocket = new MulticastSocket(MULTICAST_PORT);
             this.groupAddress = InetAddress.getByName(MULTICAST_IP);
-            this.multicastSocket.joinGroup(groupAddress);
+            
+            // --- CORREÇÃO DA API DEPRECADA ---
+            // Cria o endereço do soquete combinando IP e Porta
+            SocketAddress group = new InetSocketAddress(this.groupAddress, MULTICAST_PORT);
+            
+            // Entra no grupo usando a API moderna (evita o warning do compilador)
+            this.multicastSocket.joinGroup(group, null);
+            
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Mapeia os IPs e portas para gerar um ID determinístico único (0, 1, 2...).
+     * @return O ID inteiro do processo local.
+     */
     public int getMyId() {
         // Ordena os membros pelo IP/Porta para mapear um ID determinístico (0, 1, 2...)
         List<InetSocketAddress> sorted = new ArrayList<>(members);
@@ -35,6 +57,10 @@ public class DiscoveryService extends Thread {
         return 0; // Fallback
     }
 
+    /**
+     * Executa o laço principal da thread, anunciando a presença do nó local
+     * e escutando a entrada de novos membros no grupo multicast.
+     */
     public void run() {
         // Thread para anunciar presença periodicamente
         new Thread(() -> {

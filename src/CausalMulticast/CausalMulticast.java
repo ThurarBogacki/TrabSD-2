@@ -5,6 +5,11 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Inicializa o middleware de Multicast Causal.
+ * Configura o socket UDP, inicia o serviço de descoberta e aloca
+ * a matriz de relógios lógicos locais (mc).
+ */
 public class CausalMulticast {
     private int[][] mc; // Matriz de Relógios lógicos
     private final List<Message> buffer = new CopyOnWriteArrayList<>();
@@ -29,7 +34,12 @@ public class CausalMulticast {
 
     private int delayedCounter = 0;
 
-    // CONSTRUTOR EM CONFORMIDADE ESTRITA COM A ESPECIFICAÇÃO
+    /**
+     * Inicializa o middleware de Multicast Causal.
+     * @param ip Endereço IP (atualmente fixado localmente).
+     * @param port Porta local que o processo utilizará.
+     * @param client Referência para a aplicação cliente.
+     */
     public CausalMulticast(String ip, Integer port, ICausalMulticast client) {
         this.client = client;
         this.mc = new int[maxId][maxId];
@@ -47,6 +57,11 @@ public class CausalMulticast {
         }
     }
 
+    /**
+     * Inicia o envio de uma mensagem para o grupo multicast.
+     * @param msg Conteúdo da mensagem a ser enviada.
+     * @param cliente Interface da aplicação que está enviando.
+     */
     public synchronized void mcsend(String msg, ICausalMulticast cliente) {
 
         if (msg.trim().toLowerCase().startsWith("liberar ")) {
@@ -102,6 +117,10 @@ public class CausalMulticast {
         printStatus();
     }
 
+    /**
+     * Libera e envia uma mensagem que havia sido retida intencionalmente para testes.
+     * @param idAtraso O identificador único da mensagem retida.
+     */
     public void liberarMensagem(int idAtraso) {
         for (DelayedUnicast du : mensagensAtrasadas) {
             if (du.id == idAtraso) {
@@ -127,71 +146,81 @@ public class CausalMulticast {
         }
     }
 
-      // Adicione essa estrutura nas variáveis de escopo da classe CausalMulticast para controle de duplicatas
-private final Set<String> mensagensEntreguesNaAplicacao = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> mensagensEntreguesNaAplicacao = Collections.synchronizedSet(new HashSet<>());
 
-  private void startListening() {
-    new Thread(() -> {
-        byte[] receiveBuffer = new byte[8192];
-        while (true) {
-            try {
-                DatagramPacket packet = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-                socket.receive(packet);
-                
-                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(packet.getData()));
-                Message msg = (Message) ois.readObject();
-                
-                synchronized (this) {
-                    // 1. Apenas coloca no buffer e atualiza a visão da linha do remetente (Fig 2)
-                    buffer.add(msg);
+    private void startListening() {
+        new Thread(() -> {
+            byte[] receiveBuffer = new byte[8192];
+            while (true) {
+                try {
+                    DatagramPacket packet = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                    socket.receive(packet);
                     
-                    for (int k = 0; k < maxId; k++) {
-                        this.mc[msg.senderId][k] = Math.max(this.mc[msg.senderId][k], msg.vc[msg.senderId][k]);
+                    ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(packet.getData()));
+                    Message msg = (Message) ois.readObject();
+                    
+                    synchronized (this) {
+                        // 1. Apenas coloca no buffer e atualiza a visão da linha do remetente (Fig 2)
+                        buffer.add(msg);
+                        
+                        for (int k = 0; k < maxId; k++) {
+                            this.mc[msg.senderId][k] = Math.max(this.mc[msg.senderId][k], msg.vc[msg.senderId][k]);
+                        }
+                        
+                        // 2. Processa o ordenamento causal e a entrega antes de mexer no nosso relógio de controle
+                        processBuffer();
+                        checkStabilization();
+                        printStatus();
+                    }
+                } catch (Exception e) {
+                    // Captura silenciosa para o console ficar limpo
+                }
+            }
+        }).start();
+    }
+
+    private void processBuffer() {
+        int myId = discovery.getMyId();
+        boolean deliveredAny;
+        do {
+            deliveredAny = false;
+            for (Message msg : buffer) {
+                String msgId = msg.senderId + "_" + msg.vc[msg.senderId][msg.senderId];
+                
+                if (isCausallyOrdered(msg)) {
+                    // Remove do buffer de pendências temporárias
+                    buffer.remove(msg);
+                    
+                    if (!mensagensEntreguesNaAplicacao.contains(msgId)) {
+                        mensagensEntreguesNaAplicacao.add(msgId);
+                        
+                        // CORREÇÃO DA FIGURA 1: Incrementa o relógio local do receptor no momento da entrega!
+                        if (myId != msg.senderId) {
+                            mc[myId][msg.senderId]++;
+                        }
+                        
+                        // Entrega assíncrona para não congelar o console de comandos
+                        new Thread(() -> client.deliver(msg.content)).start();
                     }
                     
-                    // 2. Processa o ordenamento causal e a entrega antes de mexer no nosso relógio de controle
-                    processBuffer();
-                    checkStabilization();
-                    printStatus();
+                    deliveredAny = true;
+                    break; 
                 }
-            } catch (Exception e) {
-                // Captura silenciosa para o console ficar limpo
             }
-        }
-    }).start();
-}
+        } while (deliveredAny);
+    }
 
-private void processBuffer() {
-    int myId = discovery.getMyId();
-    boolean deliveredAny;
-    do {
-        deliveredAny = false;
-        for (Message msg : buffer) {
-            String msgId = msg.senderId + "_" + msg.vc[msg.senderId][msg.senderId];
-            
-            if (isCausallyOrdered(msg)) {
-                // Remove do buffer de pendências temporárias
-                buffer.remove(msg);
-                
-                if (!mensagensEntreguesNaAplicacao.contains(msgId)) {
-                    mensagensEntreguesNaAplicacao.add(msgId);
-                    
-                    // CORREÇÃO DA FIGURA 1: Incrementa o relógio local do receptor no momento da entrega!
-                    if (myId != msg.senderId) {
-                        mc[myId][msg.senderId]++;
-                    }
-                    
-                    // Entrega assíncrona para não congelar o console de comandos
-                    new Thread(() -> client.deliver(msg.content)).start();
-                }
-                
-                deliveredAny = true;
-                break; 
-            }
-        }
-    } while (deliveredAny);
-}
-
+    /**
+     * Avalia se uma mensagem atende aos rigorosos critérios de ordenação causal
+     * utilizando a teoria de Relógios Matriciais.
+     * <p>
+     * O algoritmo verifica duas regras fundamentais:
+     * 1. A mensagem é exatamente a sucessora da última mensagem recebida do remetente.
+     * 2. O remetente não testemunhou eventos causais que este processo local ainda desconhece.
+     * </p>
+     * * @param msg O pacote de mensagem recebido da rede contendo a matriz anexada (vc).
+     * @return true se a mensagem respeita a ordem causal e pode ser entregue; false se deve ser retida no buffer.
+     */
     private boolean isCausallyOrdered(Message msg) {
         int myId = discovery.getMyId();
         int sender = msg.senderId;
@@ -213,6 +242,12 @@ private void processBuffer() {
         return true;
     }
 
+    /**
+     * Executa a varredura global (Garbage Collection) no buffer de mensagens.
+     * Calcula o menor relógio lógico conhecido por todos os membros ativos da rede
+     * (mínimo da linha matricial) e descarta as mensagens que já foram processadas
+     * por todos os nós, garantindo a estabilidade e liberando memória.
+     */
     private void checkStabilization() {
         int myId = discovery.getMyId();
         List<InetSocketAddress> activeMembers = discovery.members;
@@ -235,6 +270,9 @@ private void processBuffer() {
         });
     }
 
+    /**
+     * Imprime no console o status atual da matriz de relógios lógicos e o estado do buffer.
+     */
     public void printStatus() {
         int myId = discovery.getMyId();
         System.out.println("\n=================================================");
