@@ -157,14 +157,14 @@ public class CausalMulticast {
                     Message msg = (Message) ois.readObject();
                     
                     synchronized (this) {
-                        // 1. Apenas coloca no buffer e atualiza a visão da linha do remetente (Fig 2)
+                        // Apenas coloca no buffer e atualiza a visão da linha do remetente
                         buffer.add(msg);
                         
                         for (int k = 0; k < maxId; k++) {
                             this.mc[msg.senderId][k] = Math.max(this.mc[msg.senderId][k], msg.vc[msg.senderId][k]);
                         }
                         
-                        // 2. Processa o ordenamento causal e a entrega antes de mexer no nosso relógio de controle
+                        // Processa o ordenamento causal e a entrega antes de mexer no nosso relógio de controle
                         processBuffer();
                         checkStabilization();
                         printStatus();
@@ -191,7 +191,7 @@ public class CausalMulticast {
                     if (!mensagensEntreguesNaAplicacao.contains(msgId)) {
                         mensagensEntreguesNaAplicacao.add(msgId);
                         
-                        // CORREÇÃO DA FIGURA 1: Incrementa o relógio local do receptor no momento da entrega!
+                        // Incrementa o relógio local do receptor no momento da entrega
                         if (myId != msg.senderId) {
                             mc[myId][msg.senderId]++;
                         }

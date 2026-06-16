@@ -29,11 +29,10 @@ public class DiscoveryService extends Thread {
             this.multicastSocket = new MulticastSocket(MULTICAST_PORT);
             this.groupAddress = InetAddress.getByName(MULTICAST_IP);
             
-            // --- CORREÇÃO DA API DEPRECADA ---
             // Cria o endereço do soquete combinando IP e Porta
             SocketAddress group = new InetSocketAddress(this.groupAddress, MULTICAST_PORT);
             
-            // Entra no grupo usando a API moderna (evita o warning do compilador)
+            // Entra no grupo
             this.multicastSocket.joinGroup(group, null);
             
         } catch (Exception e) {
