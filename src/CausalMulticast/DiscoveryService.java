@@ -29,11 +29,24 @@ public class DiscoveryService extends Thread {
             this.multicastSocket = new MulticastSocket(MULTICAST_PORT);
             this.groupAddress = InetAddress.getByName(MULTICAST_IP);
             
-            // Cria o endereço do soquete combinando IP e Porta
             SocketAddress group = new InetSocketAddress(this.groupAddress, MULTICAST_PORT);
             
-            // Entra no grupo
-            this.multicastSocket.joinGroup(group, null);
+            // Procura ativamente por uma placa de rede real (Wi-Fi/Ethernet)
+            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getLocalHost());
+            
+            // Se falhar ou for virtual, varre todas as placas disponíveis
+            if (networkInterface == null || !networkInterface.supportsMulticast() || networkInterface.isLoopback()) {
+                Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+                while (interfaces.hasMoreElements()) {
+                    NetworkInterface ni = interfaces.nextElement();
+                    if (ni.isUp() && ni.supportsMulticast() && !ni.isLoopback() && !ni.isVirtual()) {
+                        networkInterface = ni;
+                        break;
+                    }
+                }
+            }
+            
+            this.multicastSocket.joinGroup(group, networkInterface);
             
         } catch (Exception e) {
             e.printStackTrace();
@@ -77,6 +90,7 @@ public class DiscoveryService extends Thread {
                 DatagramPacket p = new DatagramPacket(buffer, buffer.length);
                 multicastSocket.receive(p);
                 String msg = new String(p.getData(), 0, p.getLength());
+                // System.out.println(">>> PACOTE MULTICAST RECEBIDO: " + msg); // DEBUG
                 if (msg.startsWith("PING:")) {
                     int port = Integer.parseInt(msg.split(":")[1]);
                     InetSocketAddress member = new InetSocketAddress(p.getAddress(), port);
